@@ -13,7 +13,7 @@ local c = require("c")
 
 ---@class Action
 ---@field description string
----@field callback fun(State)
+---@field run fun(State)
 
 ---@param list Action[]
 local function query(list)
@@ -29,7 +29,7 @@ end
 ---@param state State
 ---@param list Action[]
 ---@return boolean -- to continue
-local function main_loop_body(state, list)
+local function main_loop(state, list)
 	local str_index = query(list):match("^(%d*)$")
 	if not str_index then
 		print("invalid input")
@@ -47,7 +47,7 @@ local function main_loop_body(state, list)
 		return true
 	end
 	local action = list[index]
-	action.callback(state)
+	action.run(state)
 	return true
 end
 
@@ -59,20 +59,22 @@ local function chain_pipe_action(state)
 	assert(stdout)
 	io.write(stdout)
 	io.write(("\nSTATUS : %d\n"):format(status))
-	io.write("commit? y/n (default=y) :")
-	local response = io.read("l*")
-	if response == "" or response:sub(1, 1) == "y" then
-		state.text = stdout
-		if state.pipe == "" then
-			state.pipe = cmd
-		else
-			state.pipe = state.pipe .. " | " .. cmd
+	while true do
+		io.write("commit? y/n (default=y) :")
+		local response = io.read("l*")
+		if response == "" or response:sub(1, 1) == "y" then
+			state.text = stdout
+			if state.pipe == "" then
+				state.pipe = cmd
+			else
+				state.pipe = state.pipe .. " | " .. cmd
+			end
+			return true
 		end
-		return true
-	end
-	if response[1] ~= "n" then
+		if response:sub(1, 1) == "n" then
+			return true
+		end
 		print("invalid input")
-		return true
 	end
 end
 
@@ -136,6 +138,30 @@ local function edit_pipe_action(state)
 	end
 end
 
+---@param buffer string
+local function copy_buffer_to_clipboard(buffer)
+	local file = io.popen("wl-copy", "w")
+	if not file then
+		file = io.popen("xclip -selection clipboard")
+	end
+	if not file then
+		print("couldn't find suitable clipboard")
+		return
+	end
+	file:write(buffer)
+	file:close()
+end
+
+---@param state State
+local function copy_text_action(state)
+	copy_buffer_to_clipboard(state.text)
+end
+
+---@param state State
+local function copy_pipe_action(state)
+	copy_buffer_to_clipboard(state.pipe)
+end
+
 ---@param state State
 local function save_file_action(state)
 	io.write("enter file name: ")
@@ -169,16 +195,18 @@ local function reset_state_action(state)
 end
 
 local actions = { ---@type Action[]
-	{ description = "chain pipe", callback = chain_pipe_action },
-	{ description = "print output", callback = print_text_action },
-	{ description = "print pipe", callback = print_pipe_action },
-	{ description = "open output in less", callback = open_output_in_less_action },
-	{ description = "open pipe in less", callback = open_pipe_in_less_action },
-	{ description = "edit output with $EDITOR", callback = edit_text_action },
-	{ description = "edit pipe with $EDITOR", callback = edit_pipe_action },
-	{ description = "save file", callback = save_file_action },
-	{ description = "save pipe", callback = save_pipe_action },
-	{ description = "clear everything", callback = reset_state_action },
+	{ description = "chain pipe", run = chain_pipe_action },
+	{ description = "print output", run = print_text_action },
+	{ description = "print pipe", run = print_pipe_action },
+	{ description = "open output in less", run = open_output_in_less_action },
+	{ description = "open pipe in less", run = open_pipe_in_less_action },
+	{ description = "edit output with $EDITOR", run = edit_text_action },
+	{ description = "edit pipe with $EDITOR", run = edit_pipe_action },
+	{ description = "copy text to clipboard", run = copy_text_action },
+	{ description = "copy pipe to clipboard", run = copy_pipe_action },
+	{ description = "save file", run = save_file_action },
+	{ description = "save pipe", run = save_pipe_action },
+	{ description = "clear everything", run = reset_state_action },
 }
 
 local state = { ---@type State
@@ -186,4 +214,4 @@ local state = { ---@type State
 	pipe = ""
 }
 
-while main_loop_body(state, actions) do end
+while main_loop(state, actions) do end
