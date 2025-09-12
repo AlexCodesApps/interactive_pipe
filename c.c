@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <lua.h>
 #include <lauxlib.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -10,7 +11,10 @@
 	return luaL_error(l, "couldn't close pipe"); \
 }
 
+static _Thread_local jmp_buf error_jmp;
+
 int exec(lua_State * l) {
+	void (*pipe_handler)(int) = signal(SIGPIPE, SIG_IGN);
 	const char * cmd = luaL_checkstring(l, 1);
 	const char * content = luaL_checkstring(l, 2);
 	void * ud;
@@ -34,20 +38,28 @@ int exec(lua_State * l) {
 		goto error;
 	}
 	if (pid == 0) {
+		const char * shell = getenv("SHELL");
+		if (!shell) {
+			shell = "/bin/sh";
+		}
 		if (dup2(stdin_pipe[0], STDIN_FILENO) < 0) exit(1);
 		if (dup2(stdout_pipe[1], STDOUT_FILENO) < 0) exit(1);
 		close(stdin_pipe[0]);
 		close(stdin_pipe[1]);
 		close(stdout_pipe[0]);
 		close(stdout_pipe[1]);
-		execl("/bin/sh", "/bin/sh", "-c", cmd, NULL);
+		execl(shell, shell, "-c", cmd, NULL);
 		exit(1);
 	}
 	close(stdin_pipe[0]);
 	close(stdout_pipe[1]);
 	int clen = strlen(content);
-	assert(write(stdin_pipe[1], content, strlen(content)) == clen);
+	int write_res = write(stdin_pipe[1], content, clen);
 	close(stdin_pipe[1]);
+	if (write_res < 0) {
+		close(stdout_pipe[0]);
+		goto error;
+	}
 	char buf[1024];
 	char * str = alloc(ud, NULL, 0, 1);
 	assert(str);
@@ -61,7 +73,6 @@ int exec(lua_State * l) {
 	}
 	if (nread < 0) {
 		close(stdout_pipe[0]);
-		perror("read");
 		goto error;
 	}
 	str[len] = '\0';
@@ -72,15 +83,25 @@ int exec(lua_State * l) {
 		close(stdout_pipe[0]);
 		goto error;
 	}
-	if (!WIFEXITED(wstatus)) {
+	int status;
+	int exit_type;
+	if (WIFEXITED(wstatus)) {
+		status = WEXITSTATUS(wstatus);
+		exit_type = 0;
+	} else if (WIFSIGNALED(wstatus)) {
+		status = 140;
+		exit_type = 1;
+	} else {
 		close(stdout_pipe[0]);
 		goto error;
 	}
-	int status = WEXITSTATUS(wstatus);
+	signal(SIGPIPE, pipe_handler);
 	lua_pushstring(l, str);
 	lua_pushinteger(l, status);
-	return 2;
+	lua_pushinteger(l, exit_type);
+	return 3;
 error:
+	signal(SIGPIPE, pipe_handler);
 	lua_pushnil(l);
 	return 1;
 }

@@ -55,12 +55,15 @@ end
 local function chain_pipe_action(state)
 	io.write("enter next cmd: ")
 	local cmd = io.read("l*")
-	local stdout, status = c.exec(cmd, state.text)
+	local stdout, status, exit_type = c.exec(cmd, state.text)
 	assert(stdout)
+	if exit_type == 1 then
+		print("Interrupted!")
+	end
 	io.write(stdout)
 	io.write(("\nSTATUS : %d\n"):format(status))
 	while true do
-		io.write("commit? y/n (default=y) :")
+		io.write("commit? y/n (default=y): ")
 		local response = io.read("l*")
 		if response == "" or response:sub(1, 1) == "y" then
 			state.text = stdout
