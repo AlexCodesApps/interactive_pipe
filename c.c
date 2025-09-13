@@ -11,8 +11,6 @@
 	return luaL_error(l, "couldn't close pipe"); \
 }
 
-static _Thread_local jmp_buf error_jmp;
-
 int exec(lua_State * l) {
 	void (*pipe_handler)(int) = signal(SIGPIPE, SIG_IGN);
 	const char * cmd = luaL_checkstring(l, 1);

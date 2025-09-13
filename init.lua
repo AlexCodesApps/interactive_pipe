@@ -30,15 +30,15 @@ end
 ---@param list Action[]
 ---@return boolean -- to continue
 local function main_loop(state, list)
-	local str_index = query(list):match("^(%d*)$")
-	if not str_index then
+	local match = query(list):match("^(%d*)$")
+	if not match then
 		print("invalid input")
 		return true
 	end
-	if str_index == "" then
+	if match == "" then
 		return false
 	end
-	local index = tonumber(str_index)
+	local index = tonumber(match)
 	if index == 0 then
 		return false
 	end
@@ -93,7 +93,7 @@ local function print_pipe_action(state)
 	io.write("\n")
 end
 
-local function open_output_in_less_action(state)
+local function open_text_in_less_action(state)
 		local file = assert(io.popen("less", "w"))
 		file:write(state.text)
 		file:close()
@@ -199,11 +199,11 @@ end
 
 local actions = { ---@type Action[]
 	{ description = "chain pipe", run = chain_pipe_action },
-	{ description = "print output", run = print_text_action },
+	{ description = "print text", run = print_text_action },
 	{ description = "print pipe", run = print_pipe_action },
-	{ description = "open output in less", run = open_output_in_less_action },
+	{ description = "open text in less", run = open_text_in_less_action },
 	{ description = "open pipe in less", run = open_pipe_in_less_action },
-	{ description = "edit output with $EDITOR", run = edit_text_action },
+	{ description = "edit text with $EDITOR", run = edit_text_action },
 	{ description = "edit pipe with $EDITOR", run = edit_pipe_action },
 	{ description = "copy text to clipboard", run = copy_text_action },
 	{ description = "copy pipe to clipboard", run = copy_pipe_action },
