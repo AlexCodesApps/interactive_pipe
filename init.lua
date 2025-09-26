@@ -1,11 +1,13 @@
-local script_path = debug.getinfo(1, "S").short_src
-local sep = script_path:find("/[^/]*$")
-local dir = ""
-if sep then
-	dir = script_path:sub(1, sep)
+local script_path = debug.getinfo(1, "S").source:sub(2)
+local dir = script_path:match("(.*/)")
+if dir then
+	package.cpath = package.cpath .. ";" .. dir .. "?.so"
 end
-package.cpath = package.cpath .. ";" .. dir .. "?.so"
+
 local c = require("c")
+
+---@type fun(cmd: string, stdin: string): string?, integer, integer
+c.exec = c.exec
 
 ---@class State
 ---@field text string
