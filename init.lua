@@ -51,6 +51,21 @@ local function main_loop(state, list)
 	return true
 end
 
+---@return boolean
+local function query_commit()
+	while true do
+		io.write("commit? y/n (default=y): ")
+		local response = io.read("l*")
+		if response == "" or response:sub(1, 1) == "y" then
+			return true
+		end
+		if response:sub(1, 1) == "n" then
+			return false
+		end
+		print("invalid input")
+	end
+end
+
 ---@param state State
 local function chain_pipe_action(state)
 	io.write("enter next cmd: ")
@@ -62,22 +77,13 @@ local function chain_pipe_action(state)
 	end
 	io.write(stdout)
 	io.write(("\nSTATUS : %d\n"):format(status))
-	while true do
-		io.write("commit? y/n (default=y): ")
-		local response = io.read("l*")
-		if response == "" or response:sub(1, 1) == "y" then
-			state.text = stdout
-			if state.pipe == "" then
-				state.pipe = cmd
-			else
-				state.pipe = state.pipe .. " | " .. cmd
-			end
-			return true
+	if query_commit() then
+		state.text = stdout
+		if state.pipe == "" then
+			state.pipe = cmd
+		else
+			state.pipe = state.pipe .. " | " .. cmd
 		end
-		if response:sub(1, 1) == "n" then
-			return true
-		end
-		print("invalid input")
 	end
 end
 
@@ -166,6 +172,20 @@ local function copy_pipe_action(state)
 end
 
 ---@param state State
+local function reexecute_pipe_action(state)
+	local stdout, status, exit_type = c.exec(state.pipe, "")
+	assert(stdout)
+	if exit_type == 1 then
+		print("Interrupted!")
+	end
+	io.write(stdout)
+	io.write(("\nSTATUS : %d\n"):format(status))
+	if query_commit() then
+		state.text = stdout
+	end
+end
+
+---@param state State
 local function save_file_action(state)
 	io.write("enter file name: ")
 	local path = io.read("l*")
@@ -207,6 +227,7 @@ local actions = { ---@type Action[]
 	{ description = "edit pipe with $EDITOR", run = edit_pipe_action },
 	{ description = "copy text to clipboard", run = copy_text_action },
 	{ description = "copy pipe to clipboard", run = copy_pipe_action },
+	{ description = "re-execute pipe", run = reexecute_pipe_action },
 	{ description = "save file", run = save_file_action },
 	{ description = "save pipe", run = save_pipe_action },
 	{ description = "clear everything", run = reset_state_action },
