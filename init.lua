@@ -73,10 +73,11 @@ local function chain_pipe_action(state)
 	io.write("enter next cmd: ")
 	local cmd = io.read("l*")
 	local stdout, status, exit_type = c.exec(cmd, state.text)
-	assert(stdout)
 	if exit_type == 1 then
 		print("Interrupted!")
+		return
 	end
+	assert(stdout)
 	io.write(stdout)
 	io.write(("\nSTATUS : %d\n"):format(status))
 	if query_commit() then
@@ -179,6 +180,7 @@ local function reexecute_pipe_action(state)
 	assert(stdout)
 	if exit_type == 1 then
 		print("Interrupted!")
+		return
 	end
 	io.write(stdout)
 	io.write(("\nSTATUS : %d\n"):format(status))
